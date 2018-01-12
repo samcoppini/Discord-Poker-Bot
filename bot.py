@@ -30,6 +30,7 @@ class Player:
         self.user = user
         self.cards: Tuple[Card, Card] = None
         self.cur_bet = 0
+        self.placed_bet = False
 
     def pay_blind(self, amount: int) -> int:
         self.cur_bet = min(self.balance, amount)
@@ -66,8 +67,6 @@ class Game:
         self.pot = 0
         # The index of the player whose turn it is
         self.turn_index = -1
-        # Whether it's the first go-around of betting
-        self.first_betting_round = False
 
     def add_player(self, user: discord.User) -> bool:
         if self.is_player(user):
@@ -125,6 +124,7 @@ class Game:
         for player in self.players:
             player.cards = (self.cur_deck.draw(), self.cur_deck.draw())
             player.cur_bet = 0
+            player.placed_bet = False
             self.in_hand.append(player)
         self.state = GameState.HANDS_DEALT
         self.cur_bet = self.min_blind * 2
@@ -133,7 +133,6 @@ class Game:
         self.pot += self.big_blind.pay_blind(self.min_blind * 2)
         self.first_bettor = self.dealer_index
         self.turn_index = self.first_bettor
-        self.first_betting_round = True
         return ['The hands have been dealt!',
                 f'{self.little_blind.user.name} has paid the little blind of ${self.min_blind}.',
                 f'{self.big_blind.user.name} has paid the big blind of ${self.min_blind * 2}.'] + self.cur_options()
@@ -170,17 +169,15 @@ class Game:
             return self.showdown()
         messages.append("  ".join(str(card) for card in self.shared_cards))
         for player in self.players:
+            player.placed_bet = False
             player.cur_bet = 0
         self.cur_bet = 0
         self.turn_index = self.first_bettor
-        self.first_betting_round = True
         return messages + self.cur_options()
 
     def next_turn(self) -> List[str]:
         self.turn_index = (self.turn_index + 1) % len(self.in_hand)
-        if self.turn_index == self.first_bettor:
-            self.first_betting_round = False
-        if self.cur_bet == self.current_player.cur_bet and not self.first_betting_round:
+        if self.cur_bet == self.current_player.cur_bet and self.current_player.placed_bet:
                 return self.next_round()
         if self.current_player.balance == 0:
             return self.next_turn()
@@ -212,14 +209,17 @@ class Game:
         return messages
 
     def check(self) -> List[str]:
+        self.current_player.placed_bet = True
         return [f"{self.current_player.user.name} checks."] + self.next_turn()
 
     def raise_bet(self, amount: int) -> List[str]:
+        self.current_player.placed_bet = True
         self.cur_bet = amount
         return self.call()
 
     def call(self) -> List[str]:
         messages: List[str] = []
+        self.current_player.placed_bet = True
         self.pot += self.current_player.call(self.cur_bet)
         if self.current_player.balance == 0:
             messages.append(f"{self.current_player.user.name} is all in!")
@@ -228,7 +228,11 @@ class Game:
     def fold(self) -> List[str]:
         messages = [f"{self.current_player.user.name} has folded."]
         self.in_hand.pop(self.turn_index)
-        if len(self.in_hand) >= self.turn_index:
+        if self.turn_index < self.first_bettor:
+            self.first_bettor -= 1
+        if self.first_bettor >= len(self.in_hand):
+            self.first_bettor = 0
+        if self.turn_index >= len(self.in_hand):
             self.turn_index = 0
         if len(self.in_hand) == 1:
             messages.append(f"{self.current_player.user.name} wins ${self.pot}!")
@@ -237,9 +241,8 @@ class Game:
             self.next_dealer()
             messages += self.status_between_rounds()
         else:
-            if self.turn_index < self.first_bettor:
-                self.first_bettor -= 1
-            messages += self.cur_options()
+            self.turn_index -= 1
+            messages += self.next_turn()
         return messages
 
     async def tell_hands(self):
@@ -401,7 +404,6 @@ async def on_message(message):
         messages = commands[command](message)
         if command == '!deal' and messages[0] == 'The hands have been dealt!':
             await game.tell_hands()
-        for text in messages:
-            await client.send_message(message.channel, text)
+        await client.send_message(message.channel, '\n'.join(messages))
 
 client.run(POKER_BOT_TOKEN)
