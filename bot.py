@@ -51,6 +51,8 @@ class Game:
         self.players: List[Player] = []
         # The players participating in the current hand
         self.in_hand: List[Player] = []
+        # The players that are all in
+        self.all_in: List[Player] = []
         # The index of the current dealer
         self.dealer_index = 0
         # The index of the first person to bet this round
@@ -120,6 +122,7 @@ class Game:
     def deal_hands(self) -> List[str]:
         self.cur_deck = Deck()
         self.in_hand = []
+        self.all_in = []
         self.shared_cards = []
         for player in self.players:
             player.cards = (self.cur_deck.draw(), self.cur_deck.draw())
@@ -176,11 +179,19 @@ class Game:
         return messages + self.cur_options()
 
     def next_turn(self) -> List[str]:
-        self.turn_index = (self.turn_index + 1) % len(self.in_hand)
-        if self.cur_bet == self.current_player.cur_bet and self.current_player.placed_bet:
-                return self.next_round()
-        if self.current_player.balance == 0:
-            return self.next_turn()
+        do_showdown = (len(self.in_hand) == 0)
+        if not do_showdown:
+            self.turn_index = (self.turn_index + 1) % len(self.in_hand)
+            if self.cur_bet == self.current_player.cur_bet and self.current_player.placed_bet:
+                if len(self.in_hand) == 1:
+                    do_showdown = True
+                else:
+                    return self.next_round()
+        if do_showdown:
+            while len(self.shared_cards) < 5:
+                self.shared_cards.append(self.cur_deck.draw())
+            self.in_hand += self.all_in
+            return self.showdown()
         return self.cur_options()
 
     def showdown(self) -> List[str]:
@@ -203,6 +214,20 @@ class Game:
             messages.append(f"{' and '.join(winner.user.name for winner in winners)} each win ${self.pot // len(winners)}!")
         for winner in winners:
             winner.balance += self.pot // len(winners)
+        i = 0
+        while i < len(self.players):
+            player = self.players[i]
+            if player.balance == 0:
+                messages.append(f"{player.user.name} has been knocked out of the game!")
+                self.players.pop(i)
+                if len(self.players) == 1:
+                    messages.append(f"{self.players[0].user.name} wins the game! Congratulations!")
+                    self.state = GameState.NO_GAME
+                    return messages
+                if i < self.dealer_index:
+                    self.dealer_index -= 1
+            else:
+                i += 1
         self.state = GameState.NO_HANDS
         self.next_dealer()
         messages += self.status_between_rounds()
@@ -223,6 +248,9 @@ class Game:
         self.pot += self.current_player.call(self.cur_bet)
         if self.current_player.balance == 0:
             messages.append(f"{self.current_player.user.name} is all in!")
+            self.all_in.append(self.current_player)
+            self.in_hand.pop(self.turn_index)
+            self.turn_index -= 1
         return messages + self.next_turn()
 
     def fold(self) -> List[str]:
@@ -234,16 +262,21 @@ class Game:
             self.first_bettor = 0
         if self.turn_index >= len(self.in_hand):
             self.turn_index = 0
-        if len(self.in_hand) == 1:
-            messages.append(f"{self.current_player.user.name} wins ${self.pot}!")
-            self.current_player.balance += self.pot
-            self.state = GameState.NO_HANDS
-            self.next_dealer()
-            messages += self.status_between_rounds()
-        else:
-            self.turn_index -= 1
-            messages += self.next_turn()
-        return messages
+        if len(self.in_hand) <= 1:
+            if len(self.all_in) == 0 or (len(self.all_in) == 1 and len(self.in_hand) == 0):
+                winner = self.in_hand[0] if self.in_hand else self.all_in[0]
+                messages.append(f"{winner.user.name} wins ${self.pot}!")
+                winner.balance += self.pot
+                self.state = GameState.NO_HANDS
+                self.next_dealer()
+                return messages + self.status_between_rounds()
+            elif self.current_player.cur_bet == self.cur_bet:
+                while len(self.shared_cards) < 5:
+                    self.shared_cards.append(self.cur_deck.draw())
+                self.in_hand += self.all_in
+                return self.showdown()
+        self.turn_index -= 1
+        return messages + self.next_turn()
 
     async def tell_hands(self):
         for player in self.players:
@@ -255,7 +288,9 @@ client = discord.Client()
 game = Game()
 
 def new_game(message: discord.Message) -> List[str]:
+    global game
     if game.state == GameState.NO_GAME:
+        game = Game()
         game.add_player(message.author)
         game.state = GameState.WAITING
         return [f"A new game has been started by {message.author.name}!",
