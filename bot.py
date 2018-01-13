@@ -500,28 +500,51 @@ def fold_hand(game: Game, message: discord.Message) -> List[str]:
     else:
         return game.fold()
 
+def show_help(game: Game, message: discord.Message) -> List[str]:
+    longest_command = len(max(commands, key=len))
+    help_lines = []
+    for command, info in sorted(commands.items()):
+        spacing = ' ' * (longest_command - len(command) + 2)
+        help_lines.append(command + spacing + info[0])
+    return ['```' + '\n'.join(help_lines) + '```']
+
+commands = {
+    '!newgame': ('Starts a new game, allowing players to join.',
+                 new_game),
+    '!join':    ('Lets you join a game that is about to begin',
+                 join_game),
+    '!start':   ('Begins a game after all players have joined',
+                 start_game),
+    '!deal':    ('Deals the hole cards to all the players',
+                 deal_hand),
+    '!call':    ('Matches the current bet',
+                 call_bet),
+    '!raise':   ('Increase the size of current bet',
+                 raise_bet),
+    '!check':   ('Bet no money',
+                 check),
+    '!fold':    ('Discard your hand and forfeit the pot',
+                 fold_hand),
+    '!help':    ('Show the list of commands',
+                 show_help),
+}
+
 @client.event
 async def on_ready():
     print("Poker bot ready!")
 
 @client.event
 async def on_message(message):
-    commands = {
-        '!newgame': new_game,
-        '!join':    join_game,
-        '!start':   start_game,
-        '!deal':    deal_hand,
-        '!call':    call_bet,
-        '!raise':   raise_bet,
-        '!check':   check,
-        '!fold':    fold_hand,
-    }
-    if len(message.content.split()) == 0:
+    if message.author == client.user or len(message.content.split()) == 0:
         return
+
     command = message.content.split()[0]
-    if command[0] == '!' and command in commands:
+    if command[0] == '!':
+        if command not in commands:
+            await client.send_message(message.channel, f"{message.content} is not a valid command. Message !help to see the list of commands.")
+            return
         game = games.setdefault(message.channel, Game())
-        messages = commands[command](game, message)
+        messages = commands[command][1](game, message)
         if command == '!deal' and messages[0] == 'The hands have been dealt!':
             await game.tell_hands()
         await client.send_message(message.channel, '\n'.join(messages))
