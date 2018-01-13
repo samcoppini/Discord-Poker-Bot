@@ -8,6 +8,7 @@ from poker import *
 
 STARTING_BALANCE = 500
 
+# An enumeration that says what stage of the game we've reached
 class GameState(Enum):
     # Game hasn't started yet
     NO_GAME = 1
@@ -24,12 +25,18 @@ class GameState(Enum):
     # We just dealt the river
     RIVER_DEALT = 7
 
+# A class that contains information on an individual player
 class Player:
     def __init__(self, user: discord.User) -> None:
+        # How many chips the player has
         self.balance = STARTING_BALANCE
+        # The discord user associated with the player
         self.user = user
+        # The player's hole cards
         self.cards: Tuple[Card, Card] = None
+        # How many chips the player has bet this round
         self.cur_bet = 0
+        # Whether the player has placed a bet yet this round
         self.placed_bet = False
 
     def pay_blind(self, amount: int) -> int:
@@ -44,6 +51,7 @@ class Player:
         self.cur_bet += new_bet
         return new_bet
 
+# A class that keeps track of all the information having to do with a game
 class Game:
     def __init__(self) -> None:
         self.state = GameState.NO_GAME
@@ -70,24 +78,28 @@ class Game:
         # The index of the player whose turn it is
         self.turn_index = -1
 
+    # Adds a new player to the game, and returns if they weren't already playing
     def add_player(self, user: discord.User) -> bool:
         if self.is_player(user):
             return False
         self.players.append(Player(user))
         return True
 
+    # Returns whether a user is playing in the game
     def is_player(self, user: discord.User) -> bool:
         for player in self.players:
             if player.user == user:
                 return True
         return False
 
+    # Returns whether a user is involved in the current hand
     def is_playing(self, user: discord.User) -> bool:
         for player in self.in_hand:
             if player.user == user:
                 return True
         return False
 
+    # Returns some messages to update the players on the state of the game
     def status_between_rounds(self) -> List[str]:
         messages = []
         for player in self.players:
@@ -95,51 +107,72 @@ class Game:
         messages.append(f"{self.dealer.user.name} is the current dealer. Message !deal to deal when you're ready.")
         return messages
 
+    # Moves on to the next dealer
     def next_dealer(self) -> None:
         self.dealer_index = (self.dealer_index + 1) % len(self.players)
 
+    # Returns the current dealer
     @property
     def dealer(self) -> Player:
         return self.players[self.dealer_index]
 
+    # Returns the player who is paying the big blind
     @property
     def big_blind(self) -> Player:
         return self.players[self.dealer_index - 1]
 
+    # Returns the player who is paying the little blind
     @property
     def little_blind(self) -> Player:
         return self.players[self.dealer_index - 2]
 
+    # Returns player who is next to move
     @property
     def current_player(self) -> Player:
         return self.in_hand[self.turn_index]
 
+    # Starts a new game, returning the messages to tell the channel
     def start(self) -> List[str]:
         self.state = GameState.NO_HANDS
         self.dealer_index = 0
         return ["The game has begun!"] + self.status_between_rounds()
 
+    # Starts a new round of Hold'em, dealing two cards to each player, and return
+    # the messages to tell the channel
     def deal_hands(self) -> List[str]:
+        # Shuffles a new deck of cards
         self.cur_deck = Deck()
-        self.in_hand = []
+
+        # Start out the list of players that are all-in as empty
         self.all_in = []
+
+        # Start out the shared cards as being empty
         self.shared_cards = []
+
+        # Deals hands to each player, setting their initial bets to zero and
+        # adding them as being in on the hand
+        self.in_hand = []
         for player in self.players:
             player.cards = (self.cur_deck.draw(), self.cur_deck.draw())
             player.cur_bet = 0
             player.placed_bet = False
             self.in_hand.append(player)
+
         self.state = GameState.HANDS_DEALT
         self.cur_bet = self.min_blind * 2
+        # Set the pot to be currently empty
         self.pot = 0
+        # Take care of the blinds
         self.pot += self.little_blind.pay_blind(self.min_blind)
         self.pot += self.big_blind.pay_blind(self.min_blind * 2)
+
         self.first_bettor = self.dealer_index
         self.turn_index = self.first_bettor
         return ['The hands have been dealt!',
                 f'{self.little_blind.user.name} has paid the little blind of ${self.min_blind}.',
                 f'{self.big_blind.user.name} has paid the big blind of ${self.min_blind * 2}.'] + self.cur_options()
 
+    # Returns messages telling the current player of the options available to them
     def cur_options(self) -> List[str]:
         messages = [f"It is {self.current_player.user.name}'s turn. {self.current_player.user.name} currently has ${self.current_player.balance}. The pot is currently ${self.pot}."]
         if self.cur_bet > 0:
@@ -152,6 +185,8 @@ class Game:
             messages.append("Message !call, !raise or !fold.")
         return messages
 
+    # Advances to the next round of betting (or to the showdown), returning a
+    # list messages to tell the players
     def next_round(self) -> List[str]:
         messages: List[str] = []
         if self.state == GameState.HANDS_DEALT:
@@ -178,42 +213,68 @@ class Game:
         self.turn_index = self.first_bettor
         return messages + self.cur_options()
 
+    # Finish a player's turn, advancing to either the next player who needs to
+    # bet, the next round of betting, or to the showdown
     def next_turn(self) -> List[str]:
+        # If everyone is all in, instead of having a next turn, we have a showdown
         do_showdown = (len(self.in_hand) == 0)
+
         if not do_showdown:
             self.turn_index = (self.turn_index + 1) % len(self.in_hand)
+            # If the current player has already bet, and that bet matches the
+            # current bet, we can go on to the next round
             if self.cur_bet == self.current_player.cur_bet and self.current_player.placed_bet:
                 if len(self.in_hand) == 1:
+                    # If everyone but one person is all in, and that person
+                    # matched the previous bets, we have the showdown
                     do_showdown = True
                 else:
+                    # Otherwise, we go to the next round
                     return self.next_round()
+
         if do_showdown:
+            # If there's less than five shared cards currently dealt, we deal
+            # the rest of them now
             while len(self.shared_cards) < 5:
                 self.shared_cards.append(self.cur_deck.draw())
             self.in_hand += self.all_in
             return self.showdown()
+
         return self.cur_options()
 
+    # Reveals the players' hands, and rewards the pot to the winner(s)
     def showdown(self) -> List[str]:
         messages = ["We have reached the end of betting. All cards will be revealed."]
         messages.append("  ".join(str(card) for card in self.shared_cards))
 
+        # Go through the player's hands to determine the winner(s)
         winners: List[Player] = []
         best_hand: Hand = None
         for player in self.in_hand:
+            # Let everyone know what the player had
             messages.append(f"{player.user.name}'s hand: {player.cards[0]}  {player.cards[1]}")
+
+            # Get the best possible hand that can be made from the player's cards
             best_poss_hand = best_possible_hand(self.shared_cards, player.cards)
             if best_hand is None or best_poss_hand > best_hand:
+                # If their hand beats the current winner, make them the sole
+                # winner (so far)
                 winners = [player]
                 best_hand = best_poss_hand
             elif best_hand == best_poss_hand:
+                # If their hand tied with the current winner, add them to
+                # the winners list
                 winners.append(player)
+
         if len(winners) == 1:
             messages.append(f"{winners[0].user.name} wins ${self.pot}!")
         else:
             messages.append(f"{' and '.join(winner.user.name for winner in winners)} each win ${self.pot // len(winners)}!")
         for winner in winners:
             winner.balance += self.pot // len(winners)
+
+        # Go through the list of players, and knock out the ones that went all
+        # in and lost
         i = 0
         while i < len(self.players):
             player = self.players[i]
@@ -221,6 +282,7 @@ class Game:
                 messages.append(f"{player.user.name} has been knocked out of the game!")
                 self.players.pop(i)
                 if len(self.players) == 1:
+                    # There's only one player, so they win
                     messages.append(f"{self.players[0].user.name} wins the game! Congratulations!")
                     self.state = GameState.NO_GAME
                     return messages
@@ -228,20 +290,25 @@ class Game:
                     self.dealer_index -= 1
             else:
                 i += 1
+
+        # Go on to the next round
         self.state = GameState.NO_HANDS
         self.next_dealer()
         messages += self.status_between_rounds()
         return messages
 
+    # Make the current player check, betting no additional money
     def check(self) -> List[str]:
         self.current_player.placed_bet = True
         return [f"{self.current_player.user.name} checks."] + self.next_turn()
 
+    # Has the current player raise a certain amount
     def raise_bet(self, amount: int) -> List[str]:
         self.current_player.placed_bet = True
         self.cur_bet = amount
         return self.call()
 
+    # Has the current player call the current bet
     def call(self) -> List[str]:
         messages: List[str] = []
         self.current_player.placed_bet = True
@@ -253,16 +320,22 @@ class Game:
             self.turn_index -= 1
         return messages + self.next_turn()
 
+    # Has the current player fold their hand
     def fold(self) -> List[str]:
         messages = [f"{self.current_player.user.name} has folded."]
         self.in_hand.pop(self.turn_index)
+
+        # Adjust the index of the first person to bet and the index of the
+        # current player, depending on the index of the player who just folded
         if self.turn_index < self.first_bettor:
             self.first_bettor -= 1
         if self.first_bettor >= len(self.in_hand):
             self.first_bettor = 0
         if self.turn_index >= len(self.in_hand):
             self.turn_index = 0
+
         if len(self.in_hand) <= 1:
+            # If everyone's folded except one person, give them the pot instantly
             if len(self.all_in) == 0 or (len(self.all_in) == 1 and len(self.in_hand) == 0):
                 winner = self.in_hand[0] if self.in_hand else self.all_in[0]
                 messages.append(f"{winner.user.name} wins ${self.pot}!")
@@ -270,14 +343,20 @@ class Game:
                 self.state = GameState.NO_HANDS
                 self.next_dealer()
                 return messages + self.status_between_rounds()
+            # If we've reached a point where no one can bet more, we have the
+            # showdown instantly
             elif self.current_player.cur_bet == self.cur_bet:
                 while len(self.shared_cards) < 5:
                     self.shared_cards.append(self.cur_deck.draw())
                 self.in_hand += self.all_in
                 return self.showdown()
+
+        # If we've reached this point, we're still playing the game, so go on
+        # to the next player
         self.turn_index -= 1
         return messages + self.next_turn()
 
+    # Send a message to each player, telling them what their hole cards are
     async def tell_hands(self):
         for player in self.players:
             await client.send_message(player.user, '  '.join(str(card) for card in player.cards))
