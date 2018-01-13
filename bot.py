@@ -9,6 +9,8 @@ from poker import *
 
 STARTING_BALANCE = 500
 
+POKER_BOT_TOKEN = os.getenv("POKER_BOT_TOKEN")
+
 # An enumeration that says what stage of the game we've reached
 class GameState(Enum):
     # Game hasn't started yet
@@ -364,8 +366,6 @@ class Game:
     async def tell_hands(self):
         for player in self.players:
             await client.send_message(player.user, '  '.join(str(card) for card in player.cards))
-
-POKER_BOT_TOKEN = os.getenv("POKER_BOT_TOKEN")
 
 client = discord.Client()
 games: Dict[discord.Channel, Game] = {}
