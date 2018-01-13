@@ -1,5 +1,6 @@
 import asyncio
 from enum import Enum
+from typing import Dict
 import os
 
 import discord
@@ -54,6 +55,9 @@ class Player:
 # A class that keeps track of all the information having to do with a game
 class Game:
     def __init__(self) -> None:
+        self.new_game()
+
+    def new_game(self) -> None:
         self.state = GameState.NO_GAME
         # The players participating in the game
         self.players: List[Player] = []
@@ -364,12 +368,11 @@ class Game:
 POKER_BOT_TOKEN = os.getenv("POKER_BOT_TOKEN")
 
 client = discord.Client()
-game = Game()
+games: Dict[discord.Channel, Game] = {}
 
-def new_game(message: discord.Message) -> List[str]:
-    global game
+def new_game(game: Game, message: discord.Message) -> List[str]:
     if game.state == GameState.NO_GAME:
-        game = Game()
+        game.new_game()
         game.add_player(message.author)
         game.state = GameState.WAITING
         return [f"A new game has been started by {message.author.name}!",
@@ -380,7 +383,7 @@ def new_game(message: discord.Message) -> List[str]:
             messages.append("It still hasn't started yet, so you can still message !join to join that game.")
         return messages
 
-def join_game(message: discord.Message) -> List[str]:
+def join_game(game: Game, message: discord.Message) -> List[str]:
     if game.state == GameState.NO_GAME:
         return ["No game has been started yet for you to join.",
                 "Message !newgame to start a new game."]
@@ -393,7 +396,7 @@ def join_game(message: discord.Message) -> List[str]:
     else:
         return [f"You've already joined the game {message.author.name}!"]
 
-def start_game(message: discord.Message) -> List[str]:
+def start_game(game: Game, message: discord.Message) -> List[str]:
     if game.state == GameState.NO_GAME:
         return ["Message !newgame if you would like to start a new game."]
     elif game.state != GameState.WAITING:
@@ -407,7 +410,7 @@ def start_game(message: discord.Message) -> List[str]:
     else:
         return game.start()
 
-def deal_hand(message: discord.Message) -> List[str]:
+def deal_hand(game: Game, message: discord.Message) -> List[str]:
     if game.state == GameState.NO_GAME:
         return ["No game has been started for you to deal. Message !newgame to start one."]
     elif game.state == GameState.WAITING:
@@ -420,7 +423,7 @@ def deal_hand(message: discord.Message) -> List[str]:
     else:
         return game.deal_hands()
 
-def call_bet(message: discord.Message) -> List[str]:
+def call_bet(game: Game, message: discord.Message) -> List[str]:
     if game.state == GameState.NO_GAME:
         return ["No game has been started yet. Message !newgame to start one."]
     elif game.state == GameState.WAITING:
@@ -436,7 +439,7 @@ def call_bet(message: discord.Message) -> List[str]:
     else:
         return game.call()
 
-def check(message: discord.Message) -> List[str]:
+def check(game: Game, message: discord.Message) -> List[str]:
     if game.state == GameState.NO_GAME:
         return ["No game has been started yet. Message !newgame to start one."]
     elif game.state == GameState.WAITING:
@@ -454,7 +457,7 @@ def check(message: discord.Message) -> List[str]:
     else:
         return game.check()
 
-def raise_bet(message: discord.Message) -> List[str]:
+def raise_bet(game: Game, message: discord.Message) -> List[str]:
     if game.state == GameState.NO_GAME:
         return ["No game has been started yet. Message !newgame to start one."]
     elif game.state == GameState.WAITING:
@@ -481,7 +484,7 @@ def raise_bet(message: discord.Message) -> List[str]:
     except ValueError:
         return [f"Please follow !raise with an integer. '{tokens[1]}' is not an integer."]
 
-def fold_hand(message: discord.Message) -> List[str]:
+def fold_hand(game: Game, message: discord.Message) -> List[str]:
     if game.state == GameState.NO_GAME:
         return ["No game has been started yet. Message !newgame to start one."]
     elif game.state == GameState.WAITING:
@@ -513,9 +516,12 @@ async def on_message(message):
         '!check':   check,
         '!fold':    fold_hand,
     }
+    if len(message.content.split()) == 0:
+        return
     command = message.content.split()[0]
     if command[0] == '!' and command in commands:
-        messages = commands[command](message)
+        game = games.setdefault(message.channel, Game())
+        messages = commands[command](game, message)
         if command == '!deal' and messages[0] == 'The hands have been dealt!':
             await game.tell_hands()
         await client.send_message(message.channel, '\n'.join(messages))
