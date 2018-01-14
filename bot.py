@@ -7,9 +7,14 @@ import discord
 
 from poker import *
 
-STARTING_BALANCE = 500
+DEFAULT_STARTING_BALANCE = 500
+DEFAULT_STARTING_BLIND = 5
 
 POKER_BOT_TOKEN = os.getenv("POKER_BOT_TOKEN")
+GAME_OPTIONS = {
+    "blind":  "The current price of the little blind",
+    "buy-in": "The amount of money all players start out with",
+}
 
 # An enumeration that says what stage of the game we've reached
 class GameState(Enum):
@@ -32,7 +37,7 @@ class GameState(Enum):
 class Player:
     def __init__(self, user: discord.User) -> None:
         # How many chips the player has
-        self.balance = STARTING_BALANCE
+        self.balance = 0
         # The discord user associated with the player
         self.user = user
         # The player's hole cards
@@ -75,14 +80,17 @@ class Game:
         self.cur_deck: Deck = None
         # The five cards shared by all players
         self.shared_cards: List[Card] = []
-        # The current price of the little blind
-        self.min_blind = 5
         # The current amount that needs to be bet to go to the next round
         self.cur_bet = 0
         # The amount of money in the pot
         self.pot = 0
         # The index of the player whose turn it is
         self.turn_index = -1
+        # Options that can be set by the players
+        self.options = {
+            "blind":  DEFAULT_STARTING_BLIND,
+            "buy-in": DEFAULT_STARTING_BALANCE
+        }
 
     # Adds a new player to the game, and returns if they weren't already playing
     def add_player(self, user: discord.User) -> bool:
@@ -141,6 +149,8 @@ class Game:
     def start(self) -> List[str]:
         self.state = GameState.NO_HANDS
         self.dealer_index = 0
+        for player in self.players:
+            player.balance = self.options["buy-in"]
         return ["The game has begun!"] + self.status_between_rounds()
 
     # Starts a new round of Hold'em, dealing two cards to each player, and return
@@ -165,18 +175,24 @@ class Game:
             self.in_hand.append(player)
 
         self.state = GameState.HANDS_DEALT
-        self.cur_bet = self.min_blind * 2
+        messages = ["The hands have been dealt!"]
+
         # Set the pot to be currently empty
         self.pot = 0
-        # Take care of the blinds
-        self.pot += self.little_blind.pay_blind(self.min_blind)
-        self.pot += self.big_blind.pay_blind(self.min_blind * 2)
 
-        self.first_bettor = self.dealer_index
-        self.turn_index = self.first_bettor
-        return ['The hands have been dealt!',
-                f'{self.little_blind.user.name} has paid the little blind of ${self.min_blind}.',
-                f'{self.big_blind.user.name} has paid the big blind of ${self.min_blind * 2}.'] + self.cur_options()
+        # Take care of the blinds, if the blinds are higher than zero
+        blind = self.options["blind"]
+        self.cur_bet = blind * 2
+        if blind > 0:
+            self.pot += self.little_blind.pay_blind(blind)
+            self.pot += self.big_blind.pay_blind(blind * 2)
+
+            self.first_bettor = self.dealer_index
+            self.turn_index = self.first_bettor
+            messages.append(f"{self.little_blind.user.name} has paid the little blind of ${blind}.")
+            messages.append(f"{self.big_blind.user.name} has paid the big blind of ${blind * 2}.")
+
+        return messages + self.cur_options()
 
     # Returns messages telling the current player of the options available to them
     def cur_options(self) -> List[str]:
@@ -508,6 +524,31 @@ def show_help(game: Game, message: discord.Message) -> List[str]:
         help_lines.append(command + spacing + info[0])
     return ['```' + '\n'.join(help_lines) + '```']
 
+def show_options(game: Game, message: discord.Message) -> List[str]:
+    longest_option = len(max(game.options, key=len))
+    longest_value = max([len(str(val)) for key, val in game.options.items()])
+    option_lines = []
+    for option in GAME_OPTIONS:
+        name_spaces = ' ' * (longest_option - len(option) + 2)
+        val_spaces = ' ' * (longest_value - len(str(game.options[option])) + 2)
+        option_lines.append(option + name_spaces + str(game.options[option]) + val_spaces + GAME_OPTIONS[option])
+    return ['```' + '\n'.join(option_lines) + '```']
+
+def set_option(game: Game, message: discord.Message) -> List[str]:
+    tokens = message.content.split()
+    if len(tokens) == 2:
+        return ["You must specify a new value after the name of an option when using the !set command."]
+    elif len(tokens) == 1:
+        return ["You must specify an option and value to set when using the !set command."]
+    elif tokens[1] not in GAME_OPTIONS:
+        return [f"'{tokens[1]}' is not an option. Message !options to see the list of options."]
+    try:
+        val = int(tokens[2])
+        game.options[tokens[1]] = val
+        return [f"The {tokens[1]} is now set to {tokens[2]}."]
+    except ValueError:
+        return [f"{tokens[1]} must be set to an integer, and '{tokens[2]}' is not a valid integer."]
+
 commands = {
     '!newgame': ('Starts a new game, allowing players to join.',
                  new_game),
@@ -527,6 +568,10 @@ commands = {
                  fold_hand),
     '!help':    ('Show the list of commands',
                  show_help),
+    '!options': ('Show the list of options and their current values',
+                 show_options),
+    '!set':     ('Set the value of an option',
+                 set_option),
 }
 
 @client.event
