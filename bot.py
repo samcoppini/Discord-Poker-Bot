@@ -555,6 +555,8 @@ def set_option(game: Game, message: discord.Message) -> List[str]:
         return [f"'{tokens[1]}' is not an option. Message !options to see the list of options."]
     try:
         val = int(tokens[2])
+        if val < 0:
+            return [f"Cannot set {tokens[1]} to a negative value!"]
         game.options[tokens[1]] = val
         return [f"The {tokens[1]} is now set to {tokens[2]}."]
     except ValueError:
