@@ -12,7 +12,7 @@ DEFAULT_STARTING_BLIND = 5
 
 POKER_BOT_TOKEN = os.getenv("POKER_BOT_TOKEN")
 GAME_OPTIONS = {
-    "blind":  "The current price of the little blind",
+    "blind":  "The current price of the small blind",
     "buy-in": "The amount of money all players start out with",
 }
 
@@ -74,7 +74,7 @@ class Game:
         self.all_in: List[Player] = []
         # The index of the current dealer
         self.dealer_index = 0
-        # The index of the first person to bet this round
+        # The index of the first person to bet in the post-flop rounds
         self.first_bettor = 0
         # The deck that we're dealing from
         self.cur_deck: Deck = None
@@ -84,7 +84,7 @@ class Game:
         self.cur_bet = 0
         # The amount of money in the pot
         self.pot = 0
-        # The index of the player whose turn it is
+        # The index of the player in in_hand whose turn it is
         self.turn_index = -1
         # Options that can be set by the players
         self.options = {
@@ -113,6 +113,19 @@ class Game:
                 return True
         return False
 
+    # Removes a player from being able to bet, if they folded or went all in
+    def leave_hand(self, index: int) -> None:
+        self.in_hand.pop(self.turn_index)
+
+        # Adjust the index of the first person to bet and the index of the
+        # current player, depending on the index of the player who just folded
+        if self.turn_index < self.first_bettor:
+            self.first_bettor -= 1
+        if self.first_bettor >= len(self.in_hand):
+            self.first_bettor = 0
+        if self.turn_index >= len(self.in_hand):
+            self.turn_index = 0
+
     # Returns some messages to update the players on the state of the game
     def status_between_rounds(self) -> List[str]:
         messages = []
@@ -129,16 +142,6 @@ class Game:
     @property
     def dealer(self) -> Player:
         return self.players[self.dealer_index]
-
-    # Returns the player who is paying the big blind
-    @property
-    def big_blind(self) -> Player:
-        return self.players[self.dealer_index - 1]
-
-    # Returns the player who is paying the little blind
-    @property
-    def little_blind(self) -> Player:
-        return self.players[self.dealer_index - 2]
 
     # Returns player who is next to move
     @property
@@ -180,17 +183,34 @@ class Game:
         # Set the pot to be currently empty
         self.pot = 0
 
-        # Take care of the blinds, if the blinds are higher than zero
+        # Take care of the blinds
         blind = self.options["blind"]
         self.cur_bet = blind * 2
-        if blind > 0:
-            self.pot += self.little_blind.pay_blind(blind)
-            self.pot += self.big_blind.pay_blind(blind * 2)
 
-            self.first_bettor = self.dealer_index
-            self.turn_index = self.first_bettor
-            messages.append(f"{self.little_blind.user.name} has paid the little blind of ${blind}.")
-            messages.append(f"{self.big_blind.user.name} has paid the big blind of ${blind * 2}.")
+        # Figure out the indices of the players that need to pay the blinds
+        if len(self.players) > 2:
+            small_index = (self.dealer_index + 1) % len(self.in_hand)
+            big_index = (small_index + 1) % len(self.in_hand)
+            # The first player to bet pre-flop is the player to the left of the big blind
+            self.turn_index = (big_index + 1) % len(self.in_hand)
+            # The first player to bet post-flop is the first player to the left of the dealer
+            self.first_bettor = small_index
+        else:
+            # In heads-up games, who plays the blinds is different, with the
+            # dealer playing the small blind and the other player paying the big
+            small_index = self.dealer_index
+            big_index = self.dealer_index - 1
+            # Dealer goes first pre-flop, the other player goes first afterwards
+            self.turn_index = self.dealer_index
+            self.first_bettor = self.dealer_index - 1
+
+        self.pot += self.in_hand[small_index].pay_blind(blind)
+        self.pot += self.in_hand[big_index].pay_blind(blind * 2)
+
+
+        if blind > 0:
+            messages.append(f"{self.in_hand[small_index].user.name} has paid the small blind of ${blind}.")
+            messages.append(f"{self.in_hand[big_index].user.name} has paid the big blind of ${blind * 2}.")
 
         return messages + self.cur_options()
 
@@ -308,7 +328,7 @@ class Game:
                     messages.append(f"{self.players[0].user.name} wins the game! Congratulations!")
                     self.state = GameState.NO_GAME
                     return messages
-                if i < self.dealer_index:
+                if i <= self.dealer_index:
                     self.dealer_index -= 1
             else:
                 i += 1
@@ -338,23 +358,14 @@ class Game:
         if self.current_player.balance == 0:
             messages.append(f"{self.current_player.user.name} is all in!")
             self.all_in.append(self.current_player)
-            self.in_hand.pop(self.turn_index)
+            self.leave_hand(self.turn_index)
             self.turn_index -= 1
         return messages + self.next_turn()
 
     # Has the current player fold their hand
     def fold(self) -> List[str]:
         messages = [f"{self.current_player.user.name} has folded."]
-        self.in_hand.pop(self.turn_index)
-
-        # Adjust the index of the first person to bet and the index of the
-        # current player, depending on the index of the player who just folded
-        if self.turn_index < self.first_bettor:
-            self.first_bettor -= 1
-        if self.first_bettor >= len(self.in_hand):
-            self.first_bettor = 0
-        if self.turn_index >= len(self.in_hand):
-            self.turn_index = 0
+        self.leave_hand(self.turn_index)
 
         if len(self.in_hand) <= 1:
             # If everyone's folded except one person, give them the pot instantly
