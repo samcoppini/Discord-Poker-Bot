@@ -19,11 +19,23 @@ class HandRanking(Enum):
     FULL_HOUSE = 7
     FOUR_OF_KIND = 8
     STRAIGHT_FLUSH = 9
-    # Note that royal flushes aren't here, because they're just a special case
-    # of a straight flush
+    ROYAL_FLUSH = 10
 
     def __lt__(self, other):
         return self.value < other.value
+
+HAND_NAMES = {
+    HandRanking.HIGH_CARD:      "high card",
+    HandRanking.PAIR:           "pair",
+    HandRanking.TWO_PAIR:       "two pair",
+    HandRanking.THREE_OF_KIND:  "three of a kind",
+    HandRanking.STRAIGHT:       "straight",
+    HandRanking.FLUSH:          "flush",
+    HandRanking.FULL_HOUSE:     "full house",
+    HandRanking.FOUR_OF_KIND:   "four of a kind",
+    HandRanking.STRAIGHT_FLUSH: "straight flush",
+    HandRanking.ROYAL_FLUSH:    "royal flush",
+}
 
 # A simple class representing a card
 @total_ordering
@@ -56,7 +68,10 @@ class Hand:
         # At this point, we determine the ranking of the hand
         if self.is_flush():
             if self.is_straight():
-                self.rank = HandRanking.STRAIGHT_FLUSH
+                if self.cards[-1].rank == 'A':
+                    self.rank = HandRanking.ROYAL_FLUSH
+                else:
+                    self.rank = HandRanking.STRAIGHT_FLUSH
             else:
                 self.rank = HandRanking.FLUSH
         elif self.is_straight():
@@ -97,6 +112,9 @@ class Hand:
             if self_card != other_card:
                 return False
         return True
+
+    def __str__(self):
+        return HAND_NAMES[self.rank]
 
     # Rearrange the duplicated cards in the hand so that comparing two hands
     # with the same ranking is easier

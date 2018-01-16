@@ -309,9 +309,15 @@ class Game:
                 winners.append(player)
 
         if len(winners) == 1:
-            messages.append(f"{winners[0].user.name} wins ${self.pot}!")
+            hand_name = str(best_hand)
+            messages.append(f"{winners[0].user.name} wins ${self.pot} with a {hand_name}!")
         else:
-            messages.append(f"{' and '.join(winner.user.name for winner in winners)} each win ${self.pot // len(winners)}!")
+            hand_name = str(best_hand)
+            if hand_name.endswith("sh"):
+                hand_name += "es"
+            else:
+                hand_name += "s"
+            messages.append(f"{' and '.join(winner.user.name for winner in winners)} each win ${self.pot // len(winners)} with {hand_name}!")
         for winner in winners:
             winner.balance += self.pot // len(winners)
 
