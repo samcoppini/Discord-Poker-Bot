@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timedelta
 from enum import Enum
 from typing import Dict
 import os
@@ -7,13 +8,18 @@ import discord
 
 from poker import *
 
-DEFAULT_STARTING_BALANCE = 500
-DEFAULT_STARTING_BLIND = 5
-
 POKER_BOT_TOKEN = os.getenv("POKER_BOT_TOKEN")
-GAME_OPTIONS = {
-    "blind":  "The current price of the small blind",
-    "buy-in": "The amount of money all players start out with",
+
+class Option:
+    def __init__(self, desc, default):
+        self.description = desc
+        self.default = default
+
+GAME_OPTIONS: Dict[str, Option] = {
+    "blind":  Option("The current price of the small blind", 5),
+    "buy-in": Option("The amount of money all players start out with", 500),
+    "raise-delay": Option("The number of minutes before blinds double",  30),
+    "starting-blind": Option("The starting price of the small blind", 5)
 }
 
 # An enumeration that says what stage of the game we've reached
@@ -63,6 +69,8 @@ class Player:
 class Game:
     def __init__(self) -> None:
         self.new_game()
+        # Set the game options to the defaults
+        self.options = {key: value.default for key, value in GAME_OPTIONS.items()}
 
     def new_game(self) -> None:
         self.state = GameState.NO_GAME
@@ -86,11 +94,8 @@ class Game:
         self.pot = 0
         # The index of the player in in_hand whose turn it is
         self.turn_index = -1
-        # Options that can be set by the players
-        self.options = {
-            "blind":  DEFAULT_STARTING_BLIND,
-            "buy-in": DEFAULT_STARTING_BALANCE
-        }
+        # The last time that the blinds were automatically raised
+        self.last_raise: datetime = None
 
     # Adds a new player to the game, and returns if they weren't already playing
     def add_player(self, user: discord.User) -> bool:
@@ -154,6 +159,8 @@ class Game:
         self.dealer_index = 0
         for player in self.players:
             player.balance = self.options["buy-in"]
+        # Reset the blind to be the starting blind value
+        self.options["blind"] = self.options["starting-blind"]
         return ["The game has begun!"] + self.status_between_rounds()
 
     # Starts a new round of Hold'em, dealing two cards to each player, and return
@@ -182,6 +189,20 @@ class Game:
 
         # Set the pot to be currently empty
         self.pot = 0
+
+        # See if we need to raise the blinds or not
+        raise_delay = self.options["raise-delay"]
+        if raise_delay == 0:
+            # If the raise delay is set to zero, consider it as being turned
+            # off, and do nothing for blinds raises
+            self.last_raise = None
+        elif self.last_raise is None:
+            # Start the timer, if it hasn't been started yet
+            self.last_raise = datetime.now()
+        elif datetime.now() - self.last_raise > timedelta(minutes=raise_delay):
+            messages.append("Blinds are being doubled this round!")
+            self.options["blind"] *= 2
+            self.last_raise = datetime.now()
 
         # Take care of the blinds
         blind = self.options["blind"]
@@ -548,7 +569,7 @@ def show_options(game: Game, message: discord.Message) -> List[str]:
     for option in GAME_OPTIONS:
         name_spaces = ' ' * (longest_option - len(option) + 2)
         val_spaces = ' ' * (longest_value - len(str(game.options[option])) + 2)
-        option_lines.append(option + name_spaces + str(game.options[option]) + val_spaces + GAME_OPTIONS[option])
+        option_lines.append(option + name_spaces + str(game.options[option]) + val_spaces + GAME_OPTIONS[option].description)
     return ['```' + '\n'.join(option_lines) + '```']
 
 def set_option(game: Game, message: discord.Message) -> List[str]:
