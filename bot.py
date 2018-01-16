@@ -599,7 +599,14 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
-    if message.author == client.user or len(message.content.split()) == 0:
+    # Ignore messages sent by the bot itself
+    if message.author == client.user:
+        return
+    # Ignore empty messages
+    if len(message.content.split()) == 0:
+        return
+    # Ignore private messages
+    if message.channel.is_private:
         return
 
     command = message.content.split()[0]
