@@ -374,7 +374,7 @@ class Game:
     # Has the current player raise a certain amount
     def raise_bet(self, amount: int) -> List[str]:
         self.current_player.placed_bet = True
-        self.cur_bet = amount
+        self.cur_bet += amount
         return self.call()
 
     # Has the current player call the current bet
@@ -526,14 +526,14 @@ def raise_bet(game: Game, message: discord.Message) -> List[str]:
         return [f"You can't raise, {message.author.name}, because it's {game.current_player.user.name}'s turn."]
     tokens = message.content.split()
     if len(tokens) < 2:
-        return [f"Please follow !raise with the amount that you'd like to raise it to."]
+        return [f"Please follow !raise with the amount that you'd like to raise it by."]
     try:
         amount = int(tokens[1])
-        if amount <= game.cur_bet:
-            return [f"You can't raise to ${amount} because it is not larger than the current bet, ${game.cur_bet}"]
-        elif amount > game.current_player.balance + game.current_player.cur_bet:
-            return [f"You don't have enough money to raise to ${amount}.",
-                    f"The most you can raise it to is ${game.current_player.cur_bet + game.current_player.balance}."]
+        if game.cur_bet >= game.current_player.cur_bet + game.current_player.balance:
+            return [f"You don't have enough money to raise the current bet of ${game.cur_bet}."]
+        elif game.cur_bet + amount > game.current_player.balance + game.current_player.cur_bet:
+            return [f"You don't have enough money to raise by ${amount}.",
+                    f"The most you can raise it by is ${game.current_player.cur_bet + game.current_player.balance - game.cur_bet}."]
         return game.raise_bet(amount)
     except ValueError:
         return [f"Please follow !raise with an integer. '{tokens[1]}' is not an integer."]
