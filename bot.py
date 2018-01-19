@@ -589,6 +589,11 @@ def set_option(game: Game, message: discord.Message) -> List[str]:
     except ValueError:
         return [f"{tokens[1]} must be set to an integer, and '{tokens[2]}' is not a valid integer."]
 
+def chip_count(game: Game, message: discord.Message) -> List[str]:
+    if game.state in (GameState.NO_GAME, GameState.WAITING):
+        return ["You can't request a chip count because no game has started yet."]
+    return [f"{player.user.name} has ${player.balance}." for player in game.players]
+
 commands = {
     '!newgame': ('Starts a new game, allowing players to join.',
                  new_game),
@@ -612,6 +617,8 @@ commands = {
                  show_options),
     '!set':     ('Set the value of an option',
                  set_option),
+    '!count':   ('Shows how many chips each player has left',
+                 chip_count),
 }
 
 @client.event
