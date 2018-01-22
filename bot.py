@@ -429,8 +429,10 @@ class Game:
             messages.append(f"The current bet to meet is ${self.cur_bet}.")
         if self.current_player.cur_bet == self.cur_bet:
             messages.append("Message !check, !raise or !fold.")
-        else:
+        elif self.current_player.max_bet > self.cur_bet:
             messages.append("Message !call, !raise or !fold.")
+        else:
+            messages.append("Message !all-in or !fold.")
         return messages
 
     # Advances to the next round of betting (or to the showdown), returning a
@@ -534,6 +536,12 @@ class Game:
             self.leave_hand(self.current_player)
             self.turn_index -= 1
         return messages + self.next_turn()
+
+    def all_in(self) -> List[str]:
+        if self.pot.cur_bet > self.current_player.max_bet:
+            return self.call()
+        else:
+            return self.raise_bet(self.current_player.max_bet - self.cur_bet)
 
     # Has the current player fold their hand
     def fold(self) -> List[str]:
@@ -728,6 +736,20 @@ def chip_count(game: Game, message: discord.Message) -> List[str]:
         return ["You can't request a chip count because no game has started yet."]
     return [f"{player.user.name} has ${player.balance}." for player in game.players]
 
+def all_in(game: Game, message: discord.Message) -> List[str]:
+    if game.state == GameState.NO_GAME:
+        return ["No game has been started yet. Message !newgame to start one."]
+    elif game.state == GameState.WAITING:
+        return ["You can't go all in because the game hasn't started yet."]
+    elif not game.is_player(message.author):
+        return [f"You can't go all in, because you're not playing {message.author.name}."]
+    elif game.state == GameState.NO_HANDS:
+        return ["You can't go all in because the hands haven't been dealt yet."]
+    elif game.current_player.user != message.author:
+        return [f"You can't go all in, {message.author.name}, because it's {game.current_player.user.name}'s turn."]
+    else:
+        return game.all_in()
+
 commands = {
     '!newgame': ('Starts a new game, allowing players to join.',
                  new_game),
@@ -753,6 +775,8 @@ commands = {
                  set_option),
     '!count':   ('Shows how many chips each player has left',
                  chip_count),
+    '!all-in':  ('Bets the entirety of your remaining chips',
+                 all_in),
 }
 
 @client.event
