@@ -7,7 +7,10 @@ HEART = '♥'
 DIAMOND = '♦'
 CLUB = '♣'
 
-def test_hand(public: List[Card], hand1: HoleCards, hand2: HoleCards, expected: int) -> bool:
+# Tests that two pairs of hole cards with given community cards are ranked correctly
+# expected is the expected result. 1 means hand1 should win, 2 means hand2 should win
+# 0 means the two hands should tie
+def test_ranking(public: List[Card], hand1: HoleCards, hand2: HoleCards, expected: int) -> bool:
     best_hand1 = best_possible_hand(public, hand1)
     best_hand2 = best_possible_hand(public, hand2)
     if best_hand1 == best_hand2:
@@ -29,14 +32,31 @@ def test_hand(public: List[Card], hand1: HoleCards, hand2: HoleCards, expected: 
     print("")
     return False
 
-def test_hands(hands: List[Tuple[List[Card], HoleCards, HoleCards, int]]):
+# Tests a list of test cases to see that the hands will be ranked appropriately
+def test_rankings(hands: List[Tuple[List[Card], HoleCards, HoleCards, int]]):
+    print("Testing hand rankings:")
     tests_passed = 0
     for hand in hands:
-        if test_hand(*hand):
+        if test_ranking(*hand):
             tests_passed += 1
     print(f"{tests_passed} out of {len(hands)} tests passed!")
+    print("")
 
-test_hands([
+# Tests that the description for the hands are correct
+def test_hand_descriptions(test_cases: List[Tuple[Hand, str]]):
+    print("Testing hand descriptions:")
+    tests_passed = 0
+    for hand, description in test_cases:
+        if str(hand) == description:
+            tests_passed += 1
+        else:
+            print(f"Test failed! Expected '{description}', but got {str(hand)}!")
+            print("Hand: ", " ".join(str(card) for card in hand.cards))
+            print("")
+    print(f"{tests_passed} out of {len(test_cases)} tests passed!")
+    print("")
+
+test_rankings([
     # Testing that a high card beats a less-high card
     ([Card(SPADE, '9'), Card(CLUB, '4'), Card(HEART, '5'), Card(SPADE, '6'), Card(HEART, '7')],
      (Card(CLUB, 'K'), Card(CLUB, 'Q')),
@@ -348,4 +368,189 @@ test_hands([
      (Card(CLUB, '6'), Card(CLUB, '7')),
      (Card(HEART, 'A'), Card(CLUB, 'A')),
      0),
+])
+
+test_hand_descriptions([
+    (Hand((Card(SPADE, '2'),
+           Card(HEART, '3'),
+           Card(HEART, '4'),
+           Card(HEART, '5'),
+           Card(HEART, '7'))),
+     "seven high"
+    ),
+    (Hand((Card(SPADE, 'J'),
+           Card(HEART, 'A'),
+           Card(HEART, 'K'),
+           Card(HEART, '10'),
+           Card(HEART, '9'))),
+     "ace high"
+    ),
+    (Hand((Card(SPADE, '2'),
+           Card(HEART, '2'),
+           Card(HEART, '4'),
+           Card(HEART, '5'),
+           Card(HEART, '7'))),
+     "pair of deuces"
+    ),
+    (Hand((Card(SPADE, 'A'),
+           Card(HEART, '6'),
+           Card(HEART, 'K'),
+           Card(HEART, 'Q'),
+           Card(SPADE, '6'))),
+     "pair of sixes"
+    ),
+    (Hand((Card(SPADE, '2'),
+           Card(HEART, '6'),
+           Card(HEART, '2'),
+           Card(HEART, 'A'),
+           Card(SPADE, '6'))),
+     "two pair, sixes and deuces"
+    ),
+    (Hand((Card(SPADE, 'J'),
+           Card(HEART, 'A'),
+           Card(HEART, 'J'),
+           Card(HEART, 'Q'),
+           Card(SPADE, 'A'))),
+     "two pair, aces and jacks"
+    ),
+    (Hand((Card(SPADE, 'A'),
+           Card(SPADE, '2'),
+           Card(HEART, 'K'),
+           Card(HEART, '2'),
+           Card(SPADE, 'K'))),
+     "two pair, kings and deuces"
+    ),
+    (Hand((Card(SPADE, 'A'),
+           Card(HEART, '3'),
+           Card(HEART, 'K'),
+           Card(SPADE, '3'),
+           Card(CLUB,  '3'))),
+     "three of a kind, threes"
+    ),
+    (Hand((Card(SPADE, '8'),
+           Card(HEART, 'K'),
+           Card(HEART, '8'),
+           Card(CLUB,  '8'),
+           Card(HEART, 'A'))),
+     "three of a kind, eights"
+    ),
+    (Hand((Card(SPADE, 'Q'),
+           Card(HEART, '6'),
+           Card(HEART, 'K'),
+           Card(HEART, 'Q'),
+           Card(CLUB,  'Q'))),
+     "three of a kind, queens"
+    ),
+    (Hand((Card(SPADE, 'A'),
+           Card(HEART, '3'),
+           Card(HEART, '5'),
+           Card(CLUB,  '4'),
+           Card(HEART, '2'))),
+     "five-high straight"
+    ),
+    (Hand((Card(SPADE, '8'),
+           Card(HEART, '6'),
+           Card(HEART, '9'),
+           Card(HEART, '5'),
+           Card(CLUB,  '7'))),
+     "nine-high straight"
+    ),
+    (Hand((Card(SPADE, 'Q'),
+           Card(HEART, 'K'),
+           Card(HEART, '10'),
+           Card(HEART, 'J'),
+           Card(HEART, 'A'))),
+     "ace-high straight"
+    ),
+    (Hand((Card(HEART, '2'),
+           Card(HEART, '3'),
+           Card(HEART, '4'),
+           Card(HEART, '5'),
+           Card(HEART, '7'))),
+     "seven-high flush"
+    ),
+    (Hand((Card(SPADE, '4'),
+           Card(SPADE, '7'),
+           Card(SPADE, '6'),
+           Card(SPADE, '9'),
+           Card(SPADE, '2'))),
+     "nine-high flush"
+    ),
+    (Hand((Card(DIAMOND, 'J'),
+           Card(DIAMOND, '10'),
+           Card(DIAMOND, '4'),
+           Card(DIAMOND, '3'),
+           Card(DIAMOND, '2'))),
+     "jack-high flush"
+    ),
+    (Hand((Card(CLUB, 'A'),
+           Card(CLUB, '2'),
+           Card(CLUB, '3'),
+           Card(CLUB, '4'),
+           Card(CLUB, '6'))),
+     "ace-high flush"
+    ),
+    (Hand((Card(CLUB, 'A'),
+           Card(CLUB, '2'),
+           Card(CLUB, '3'),
+           Card(CLUB, '4'),
+           Card(CLUB, '6'))),
+     "ace-high flush"
+    ),
+    (Hand((Card(CLUB,  '10'),
+           Card(CLUB,  '2'),
+           Card(SPADE, '2'),
+           Card(HEART, '2'),
+           Card(SPADE, '10'))),
+     "full house, deuces over tens"
+    ),
+    (Hand((Card(CLUB,  '10'),
+           Card(CLUB,  '2'),
+           Card(SPADE, '2'),
+           Card(HEART, '10'),
+           Card(SPADE, '10'))),
+     "full house, tens over deuces"
+    ),
+    (Hand((Card(CLUB,    '4'),
+           Card(CLUB,    'A'),
+           Card(SPADE,   '4'),
+           Card(HEART,   '4'),
+           Card(DIAMOND, '4'))),
+     "four of a kind, fours"
+    ),
+    (Hand((Card(CLUB, 'A'),
+           Card(CLUB, '2'),
+           Card(CLUB, '3'),
+           Card(CLUB, '4'),
+           Card(CLUB, '5'))),
+     "five-high straight flush"
+    ),
+    (Hand((Card(SPADE, '6'),
+           Card(SPADE, '2'),
+           Card(SPADE, '3'),
+           Card(SPADE, '4'),
+           Card(SPADE, '5'))),
+     "six-high straight flush"
+    ),
+    (Hand((Card(DIAMOND, '9'),
+           Card(DIAMOND, '8'),
+           Card(DIAMOND, '10'),
+           Card(DIAMOND, '7'),
+           Card(DIAMOND, '6'))),
+     "ten-high straight flush"
+    ),
+    (Hand((Card(HEART, 'K'),
+           Card(HEART, 'Q'),
+           Card(HEART, '10'),
+           Card(HEART, 'J'),
+           Card(HEART, '9'))),
+     "king-high straight flush"
+    ),
+    (Hand((Card(HEART, 'K'),
+           Card(HEART, 'Q'),
+           Card(HEART, '10'),
+           Card(HEART, 'J'),
+           Card(HEART, 'A'))),
+     "royal flush"
+    ),
 ])

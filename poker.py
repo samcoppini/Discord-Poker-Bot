@@ -1,3 +1,4 @@
+from collections import namedtuple
 from enum import Enum
 from functools import total_ordering
 from itertools import combinations
@@ -5,7 +6,24 @@ from typing import List, Tuple
 import random
 
 SUITS = ('♠', '♥', '♦', '♣')
-RANKS = ('2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A')
+
+RankInfo = namedtuple('RankInfo', ['name', 'plural', 'value'])
+
+RANK_INFO = {
+    "2":  RankInfo("deuce", "deuces", 0),
+    "3":  RankInfo("three", "threes", 1),
+    "4":  RankInfo("four",  "fours",  2),
+    "5":  RankInfo("five",  "fives",  3),
+    "6":  RankInfo("six",   "sixes",  4),
+    "7":  RankInfo("seven", "sevens", 5),
+    "8":  RankInfo("eight", "eights", 6),
+    "9":  RankInfo("nine",  "nines",  7),
+    "10": RankInfo("ten",   "tens",   8),
+    "J":  RankInfo("jack",  "jacks",  9),
+    "Q":  RankInfo("queen", "queens", 10),
+    "K":  RankInfo("king",  "kings",  11),
+    "A":  RankInfo("ace",   "aces",   12),
+}
 
 # An enumeration for ranking poker hands
 @total_ordering
@@ -19,23 +37,10 @@ class HandRanking(Enum):
     FULL_HOUSE = 7
     FOUR_OF_KIND = 8
     STRAIGHT_FLUSH = 9
-    ROYAL_FLUSH = 10
+    # Royal flush is just a special case of the straight flush
 
     def __lt__(self, other):
         return self.value < other.value
-
-HAND_NAMES = {
-    HandRanking.HIGH_CARD:      "high card",
-    HandRanking.PAIR:           "pair",
-    HandRanking.TWO_PAIR:       "two pair",
-    HandRanking.THREE_OF_KIND:  "three of a kind",
-    HandRanking.STRAIGHT:       "straight",
-    HandRanking.FLUSH:          "flush",
-    HandRanking.FULL_HOUSE:     "full house",
-    HandRanking.FOUR_OF_KIND:   "four of a kind",
-    HandRanking.STRAIGHT_FLUSH: "straight flush",
-    HandRanking.ROYAL_FLUSH:    "royal flush",
-}
 
 # A simple class representing a card
 @total_ordering
@@ -46,13 +51,21 @@ class Card:
 
     # When comparing two cards, suit doesn't matter, just who has the higher rank
     def __lt__(self, other):
-        return RANKS.index(self.rank) < RANKS.index(other.rank)
+        return RANK_INFO[self.rank].value < RANK_INFO[other.rank].value
 
     def __eq__(self, other):
         return self.rank == other.rank
 
     def __str__(self) -> str:
         return self.suit + self.rank
+
+    @property
+    def name(self) -> str:
+        return RANK_INFO[self.rank].name
+
+    @property
+    def plural(self) -> str:
+        return RANK_INFO[self.rank].plural
 
 # A class for representing a 5-card hand, and allowing for the easy comparison
 # of hands
@@ -68,10 +81,7 @@ class Hand:
         # At this point, we determine the ranking of the hand
         if self.is_flush():
             if self.is_straight():
-                if self.cards[-1].rank == 'A':
-                    self.rank = HandRanking.ROYAL_FLUSH
-                else:
-                    self.rank = HandRanking.STRAIGHT_FLUSH
+                self.rank = HandRanking.STRAIGHT_FLUSH
             else:
                 self.rank = HandRanking.FLUSH
         elif self.is_straight():
@@ -114,7 +124,27 @@ class Hand:
         return True
 
     def __str__(self):
-        return HAND_NAMES[self.rank]
+        if self.rank == HandRanking.HIGH_CARD:
+            return self.cards[4].name + " high"
+        elif self.rank == HandRanking.PAIR:
+            return "pair of " + self.cards[4].plural
+        elif self.rank == HandRanking.TWO_PAIR:
+            return "two pair, " + self.cards[4].plural + " and " + self.cards[2].plural
+        elif self.rank == HandRanking.THREE_OF_KIND:
+            return "three of a kind, " + self.cards[4].plural
+        elif self.rank == HandRanking.STRAIGHT:
+            return self.cards[4].name + "-high straight"
+        elif self.rank == HandRanking.FLUSH:
+            return self.cards[4].name + "-high flush"
+        elif self.rank == HandRanking.FULL_HOUSE:
+            return "full house, " + self.cards[4].plural + " over " + self.cards[1].plural
+        elif self.rank == HandRanking.FOUR_OF_KIND:
+            return "four of a kind, " + self.cards[4].plural
+        elif self.rank == HandRanking.STRAIGHT_FLUSH:
+            if self.cards[4].rank == 'A':
+                return "royal flush"
+            else:
+                return self.cards[4].name + "-high straight flush"
 
     # Rearrange the duplicated cards in the hand so that comparing two hands
     # with the same ranking is easier
@@ -127,7 +157,7 @@ class Hand:
 
     # Returns whether the hand is a straight
     def is_straight(self) -> bool:
-        ranks = [RANKS.index(card.rank) for card in self.cards]
+        ranks = [RANK_INFO[card.rank].value for card in self.cards]
         # Check to see if each card is exactly one better than the previous card
         for i in range(1, 5):
             if ranks[i - 1] != ranks[i] - 1:
@@ -178,7 +208,7 @@ def best_possible_hand(public: List[Card], private: Tuple[Card, Card]) -> Hand:
 class Deck:
     def __init__(self):
         self.cards = [Card(suit, rank) for suit in SUITS
-                                       for rank in RANKS]
+                                       for rank in RANK_INFO]
         random.shuffle(self.cards)
 
     def draw(self) -> Card:
