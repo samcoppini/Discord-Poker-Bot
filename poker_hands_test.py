@@ -1,4 +1,6 @@
-from poker import *
+from typing import List, Tuple
+
+from poker import Card, Hand, best_possible_hand
 
 HoleCards = Tuple[Card, Card]
 
