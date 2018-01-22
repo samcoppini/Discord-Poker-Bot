@@ -398,7 +398,7 @@ class Game:
             # The first player to bet pre-flop is the player to the left of the big blind
             self.turn_index = (self.dealer_index + 3) % len(self.in_hand)
             # The first player to bet post-flop is the first player to the left of the dealer
-            self.first_bettor = self.dealer_index + 1
+            self.first_bettor = (self.dealer_index + 1) % len(self.players)
         else:
             # In heads-up games, who plays the blinds is different, with the
             # dealer playing the small blind and the other player paying the big
