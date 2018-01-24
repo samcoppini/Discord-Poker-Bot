@@ -14,7 +14,7 @@ Add whatever name, description and icon you want for your new app, and click on 
 
 Scroll down, and click on the *Create a Bot User* button.
 
-Click on the *click to reveal* button to get your bot's token. Next, either set your `POKER_BOT_TOKEN` environment variable to be that token, or replace `os.getenv("POKER_BOT_TOKEN")` on line 11 of `bot.py` with your bot's token.
+Click on the *click to reveal* button to get your bot's token. Next, either set your `POKER_BOT_TOKEN` environment variable to be that token, or replace `os.getenv("POKER_BOT_TOKEN")` on line 9 of `bot.py` with your bot's token.
 
 Now, go to [this page](https://finitereality.github.io/permissions-calculator/?v=0), select all the Non-Administrative permissions, enter the client id from the bot's application page, and then select one of the servers you own to add it that server.
 

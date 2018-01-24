@@ -49,7 +49,7 @@ class Card:
         self.suit = suit
         self.rank = rank
 
-    # When comparing two cards, suit doesn't matter, just who has the higher rank
+    # When comparing two cards, suit doesn't matter, just the rank of the card
     def __lt__(self, other):
         return RANK_INFO[self.rank].value < RANK_INFO[other.rank].value
 
@@ -71,7 +71,7 @@ class Card:
 # of hands
 @total_ordering
 class Hand:
-    def __init__(self, cards: Tuple[Card, Card, Card, Card, Card]) -> None:
+    def __init__(self, cards: List[Card]) -> None:
         # Sort the cards first thing to make hands easier to compare
         self.cards = sorted(cards)
 
@@ -202,7 +202,8 @@ class Hand:
 # Returns the best possible 5-card hand that can be made from the five
 # community cards and a player's two hole cards
 def best_possible_hand(public: List[Card], private: Tuple[Card, Card]) -> Hand:
-    return max(Hand(hand) for hand in combinations(tuple(public) + private, 5))
+    return max(Hand(list(hand))
+               for hand in combinations(tuple(public) + private, 5))
 
 # A class for representing a simple, randomized deck that can be drawn from
 class Deck:
