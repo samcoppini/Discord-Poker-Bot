@@ -11,6 +11,8 @@ POKER_BOT_TOKEN = os.getenv("POKER_BOT_TOKEN")
 client = discord.Client()
 games: Dict[discord.Channel, Game] = {}
 
+# Starts a new game if one hasn't been started yet, returning an error message
+# if a game has already been started. Returns the messages the bot should say
 def new_game(game: Game, message: discord.Message) -> List[str]:
     if game.state == GameState.NO_GAME:
         game.new_game()
@@ -26,6 +28,9 @@ def new_game(game: Game, message: discord.Message) -> List[str]:
                             "message !join to join that game.")
         return messages
 
+# Has a user try to join a game about to begin, giving an error if they've
+# already joined or the game can't be joined. Returns the list of messages the
+# bot should say
 def join_game(game: Game, message: discord.Message) -> List[str]:
     if game.state == GameState.NO_GAME:
         return ["No game has been started yet for you to join.",
@@ -40,6 +45,8 @@ def join_game(game: Game, message: discord.Message) -> List[str]:
     else:
         return [f"You've already joined the game {message.author.name}!"]
 
+# Starts a game, so long as one hasn't already started, and there are enough
+# players joined to play. Returns the messages the bot should say.
 def start_game(game: Game, message: discord.Message) -> List[str]:
     if game.state == GameState.NO_GAME:
         return ["Message !newgame if you would like to start a new game."]
@@ -55,6 +62,9 @@ def start_game(game: Game, message: discord.Message) -> List[str]:
     else:
         return game.start()
 
+# Deals the hands to the players, saying an error message if the hands have
+# already been dealt, or the game hasn't started. Returns the messages the bot
+# should say
 def deal_hand(game: Game, message: discord.Message) -> List[str]:
     if game.state == GameState.NO_GAME:
         return ["No game has been started for you to deal. "
@@ -69,6 +79,9 @@ def deal_hand(game: Game, message: discord.Message) -> List[str]:
     else:
         return game.deal_hands()
 
+# Handles a player calling a bet, giving an appropriate error message if the
+# user is not the current player or betting hadn't started. Returns the list of
+# messages the bot should say.
 def call_bet(game: Game, message: discord.Message) -> List[str]:
     if game.state == GameState.NO_GAME:
         return ["No game has been started yet. Message !newgame to start one."]
@@ -86,6 +99,8 @@ def call_bet(game: Game, message: discord.Message) -> List[str]:
     else:
         return game.call()
 
+# Has a player check, giving an error message if the player cannot check.
+# Returns the list of messages the bot should say.
 def check(game: Game, message: discord.Message) -> List[str]:
     if game.state == GameState.NO_GAME:
         return ["No game has been started yet. Message !newgame to start one."]
@@ -106,6 +121,8 @@ def check(game: Game, message: discord.Message) -> List[str]:
     else:
         return game.check()
 
+# Has a player raise a bet, giving an error message if they made an invalid
+# raise, or if they cannot raise. Returns the list of messages the bot will say
 def raise_bet(game: Game, message: discord.Message) -> List[str]:
     if game.state == GameState.NO_GAME:
         return ["No game has been started yet. Message !newgame to start one."]
@@ -138,6 +155,8 @@ def raise_bet(game: Game, message: discord.Message) -> List[str]:
         return ["Please follow !raise with an integer. "
                 f"'{tokens[1]}' is not an integer."]
 
+# Has a player fold their hand, giving an error message if they cannot fold
+# for some reason. Returns the list of messages the bot should say
 def fold_hand(game: Game, message: discord.Message) -> List[str]:
     if game.state == GameState.NO_GAME:
         return ["No game has been started yet. "
@@ -155,6 +174,8 @@ def fold_hand(game: Game, message: discord.Message) -> List[str]:
     else:
         return game.fold()
 
+# Returns a list of messages that the bot should say in order to tell the
+# players the list of available commands.
 def show_help(game: Game, message: discord.Message) -> List[str]:
     longest_command = len(max(commands, key=len))
     help_lines = []
@@ -163,6 +184,8 @@ def show_help(game: Game, message: discord.Message) -> List[str]:
         help_lines.append(command + spacing + info[0])
     return ['```' + '\n'.join(help_lines) + '```']
 
+# Returns a list of messages that the bot should say in order to tell the
+# players the list of settable options.
 def show_options(game: Game, message: discord.Message) -> List[str]:
     longest_option = len(max(game.options, key=len))
     longest_value = max([len(str(val)) for key, val in game.options.items()])
@@ -174,6 +197,9 @@ def show_options(game: Game, message: discord.Message) -> List[str]:
                             + val_spaces + GAME_OPTIONS[option].description)
     return ['```' + '\n'.join(option_lines) + '```']
 
+# Sets an option to player-specified value. Says an error message if the player
+# tries to set a nonexistent option or if the option is set to an invalid value
+# Returns the list of messages the bot should say.
 def set_option(game: Game, message: discord.Message) -> List[str]:
     tokens = message.content.split()
     if len(tokens) == 2:
@@ -195,6 +221,8 @@ def set_option(game: Game, message: discord.Message) -> List[str]:
         return [f"{tokens[1]} must be set to an integer, and '{tokens[2]}'"
                 " is not a valid integer."]
 
+# Returns a list of messages that the bot should say to tell the players of
+# the current chip standings.
 def chip_count(game: Game, message: discord.Message) -> List[str]:
     if game.state in (GameState.NO_GAME, GameState.WAITING):
         return ["You can't request a chip count because the game "
@@ -202,6 +230,9 @@ def chip_count(game: Game, message: discord.Message) -> List[str]:
     return [f"{player.user.name} has ${player.balance}."
             for player in game.players]
 
+# Handles a player going all-in, returning an error message if the player
+# cannot go all-in for some reason. Returns the list of messages for the bot
+# to say.
 def all_in(game: Game, message: discord.Message) -> List[str]:
     if game.state == GameState.NO_GAME:
         return ["No game has been started yet. Message !newgame to start one."]
@@ -221,6 +252,7 @@ def all_in(game: Game, message: discord.Message) -> List[str]:
 
 Command = namedtuple("Command", ["description", "action"])
 
+# The commands avaliable to the players
 commands: Dict[str, Command] = {
     '!newgame': Command('Starts a new game, allowing players to join.',
                         new_game),
@@ -276,8 +308,14 @@ async def on_message(message):
 
         game = games.setdefault(message.channel, Game())
         messages = commands[command][1](game, message)
+
+        # The messages to send to the channel and the messages to send to the
+        # players individually must be done seperately, so we check the messages
+        # to the channel to see if hands were just dealt, and if so, we tell the
+        # players what their hands are.
         if command == '!deal' and messages[0] == 'The hands have been dealt!':
             await game.tell_hands(client)
+
         await client.send_message(message.channel, '\n'.join(messages))
 
 client.run(POKER_BOT_TOKEN)
