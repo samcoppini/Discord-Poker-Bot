@@ -68,7 +68,7 @@ test_rankings([
     # The next highest card decides it if the first highest cards tie
     ([Card(SPADE, 'J'), Card(CLUB, '2'), Card(HEART, '5'), Card(SPADE, '9'), Card(HEART, '10')],
      (Card(CLUB, 'A'), Card(CLUB, '8')),
-     (Card(CLUB, 'A'), Card(CLUB, '7')),
+     (Card(DIAMOND, 'A'), Card(CLUB, '7')),
      1),
 
     # If the board beats all the hole cards, the two players should tie
@@ -84,7 +84,7 @@ test_rankings([
      1),
 
     # A high pair beats a low pair
-    ([Card(SPADE, '2'), Card(CLUB, '3'), Card(HEART, '5'), Card(DIAMOND, '6'), Card(CLUB, '7')],
+    ([Card(SPADE, '2'), Card(DIAMOND, '3'), Card(HEART, '5'), Card(DIAMOND, '6'), Card(CLUB, '7')],
      (Card(CLUB, '2'), Card(CLUB, 'A')),
      (Card(CLUB, '3'), Card(CLUB, '4')),
      2),
@@ -97,13 +97,13 @@ test_rankings([
 
     # The kicker for pairs doesn't matter if they're both too low
     ([Card(SPADE, '2'), Card(CLUB, 'K'), Card(HEART, 'Q'), Card(DIAMOND, 'J'), Card(CLUB, '7')],
-     (Card(CLUB, 'K'), Card(CLUB, '3')),
+     (Card(DIAMOND, 'K'), Card(CLUB, '3')),
      (Card(SPADE, 'K'), Card(CLUB, '6')),
      0),
 
     # Two pair beats one pair
     ([Card(SPADE, '2'), Card(CLUB, '3'), Card(HEART, '5'), Card(DIAMOND, '6'), Card(CLUB, '7')],
-     (Card(SPADE, '2'), Card(SPADE, '3')),
+     (Card(DIAMOND, '2'), Card(SPADE, '3')),
      (Card(CLUB, 'A'), Card(DIAMOND, 'A')),
      1),
 
@@ -229,7 +229,7 @@ test_rankings([
 
     # Full house beats two pair
     ([Card(SPADE, '2'), Card(CLUB, '2'), Card(HEART, '3'), Card(DIAMOND, 'Q'), Card(DIAMOND, 'A')],
-     (Card(DIAMOND, 'K'), Card(DIAMOND, 'A')),
+     (Card(DIAMOND, 'K'), Card(SPADE, 'A')),
      (Card(HEART, '2'), Card(SPADE, '3')),
      2),
 
@@ -302,7 +302,7 @@ test_rankings([
     # Four of a kind beats a full house
     ([Card(SPADE, '2'), Card(CLUB, '2'), Card(SPADE, '7'), Card(HEART, 'J'), Card(DIAMOND, 'A')],
      (Card(DIAMOND, '2'), Card(HEART, '2')),
-     (Card(SPADE, '2'), Card(SPADE, 'A')),
+     (Card(DIAMOND, '7'), Card(CLUB, '7')),
      1),
 
     # Ties between four of a kinds are decided by the kicker
@@ -356,7 +356,7 @@ test_rankings([
     # Straight flush beats full house
     ([Card(SPADE, '2'), Card(SPADE, '3'), Card(SPADE, '4'), Card(CLUB, '2'), Card(CLUB, 'A')],
      (Card(SPADE, '5'), Card(SPADE, '6')),
-     (Card(HEART, 'A'), Card(HEART, 'A')),
+     (Card(HEART, 'A'), Card(DIAMOND, 'A')),
      1),
 
     # Higher straight flush beats a lower straight flush
