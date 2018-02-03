@@ -181,7 +181,7 @@ class Game:
             # Start the timer, if it hasn't been started yet
             self.last_raise = datetime.now()
         elif datetime.now() - self.last_raise > timedelta(minutes=raise_delay):
-            messages.append("Blinds are being doubled this round!")
+            messages.append("**Blinds are being doubled this round!**")
             self.options["blind"] *= 2
             self.last_raise = datetime.now()
 
